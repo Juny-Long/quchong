@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信接龙去重排序工具</title>
+    <title>微信接龙去重分类工具</title>
     <style>
-        /* 基础样式 */
+        /* 基础样式保持不变 */
         * {
             margin: 0;
             padding: 0;
@@ -21,7 +21,6 @@
             flex-direction: column;
         }
         
-        /* 导航栏 */
         header {
             background-color: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -65,7 +64,6 @@
             color: #165DFF;
         }
         
-        /* 主要内容区 */
         main {
             flex: 1;
             max-width: 800px;
@@ -90,7 +88,26 @@
             gap: 10px;
         }
         
-        /* 文件上传区域 */
+        .classification-options {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .classification-options label {
+            font-weight: 500;
+            color: #555;
+        }
+        
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            flex: 0 0 150px;
+        }
+        
         .file-upload {
             margin-bottom: 25px;
         }
@@ -138,7 +155,6 @@
             font-weight: 500;
         }
         
-        /* 文本输入区域 */
         .text-input-area {
             margin-bottom: 20px;
         }
@@ -174,7 +190,6 @@
             margin-top: 5px;
         }
         
-        /* 按钮区域 */
         .btn-group {
             display: flex;
             gap: 10px;
@@ -224,7 +239,6 @@
             background-color: #2CB887;
         }
         
-        /* 统计信息 */
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -262,7 +276,6 @@
             color: #36D399;
         }
         
-        /* 使用说明 */
         .instructions {
             line-height: 1.6;
         }
@@ -286,7 +299,6 @@
             margin-bottom: 10px;
         }
         
-        /* 页脚 */
         footer {
             background-color: #333;
             color: #aaa;
@@ -318,7 +330,6 @@
             color: white;
         }
         
-        /* 辅助样式 */
         .relative {
             position: relative;
         }
@@ -340,7 +351,7 @@
         <div class="header-container">
             <div class="logo">
                 <span>🔄</span>
-                <h1>微信接龙去重排序工具</h1>
+                <h1>微信接龙去重分类工具</h1>
             </div>
             <nav>
                 <ul>
@@ -356,6 +367,16 @@
     <main>
         <section class="card">
             <h2>📄 文本处理</h2>
+            
+            <!-- 分类选项 -->
+            <div class="classification-options">
+                <label>按场数分类：</label>
+                <select id="classificationSelect">
+                    <option value="1" selected>按 1 场分类</option>
+                    <option value="2">按 2 场分类</option>
+                    <option value="all">不分类（全部显示）</option>
+                </select>
+            </div>
             
             <!-- 文件上传区域 -->
             <div class="file-upload">
@@ -399,7 +420,7 @@
             
             <!-- 处理结果区域 -->
             <div class="text-input-area">
-                <label for="resultOutput">处理结果</label>
+                <label for="resultOutput">处理结果（仅显示名字）</label>
                 <div class="relative">
                     <textarea id="resultOutput" class="input-text" placeholder="处理结果将显示在这里..." readonly></textarea>
                     <div class="absolute char-count">
@@ -429,24 +450,19 @@
         <section class="card instructions">
             <h2>ℹ️ 使用说明</h2>
             <div>
-                <p>这个工具可以帮助你对微信接龙格式的文本进行去重和重新排序操作，同时保留所有特殊符号和表情图标。</p>
+                <p>针对微信接龙格式文本进行精准去重和按场数（1/2）分类，优化了特殊格式识别。</p>
                 <h3>支持的文本格式：</h3>
                 <pre>1. 钟慧 2      不🕊️
-2. 龍龍  2      不🕊️
-3. 杨杨 2      不🕊️
-4. 🍡丸子 1 不🕊️</pre>
-                <h3>使用步骤：</h3>
-                <ol>
-                    <li>上传包含文本的TXT文件，或直接在文本框中输入文本</li>
-                    <li>点击"处理文本"按钮进行去重和排序</li>
-                    <li>处理结果将显示在下方的文本框中</li>
-                    <li>点击"复制结果"按钮可以复制处理后的文本</li>
-                </ol>
+2. 🍡丸子 1 不🕊️
+3. 明天吃什么1
+4. 真绘
+5. 小杨 不1场🕊️</pre>
                 <h3>处理规则：</h3>
                 <ul>
-                    <li>根据名称、数字和状态完全相同进行去重</li>
-                    <li>重新生成连续的序号</li>
-                    <li><strong>完全保留原始文本中的所有特殊符号、表情和图标</strong></li>
+                    <li>精准识别重复项：相同名字+相同场数视为重复（忽略状态符号差异）</li>
+                    <li>智能提取场数：优先识别独立数字，排除"不1场"等干扰项</li>
+                    <li>无明确场数时：默认按1场处理（纯名字项）</li>
+                    <li>分类后仅保留名字，去除场数和状态信息</li>
                 </ul>
             </div>
         </section>
@@ -456,7 +472,7 @@
     <footer>
         <div class="footer-container">
             <div>
-                <p>© 2025 微信接龙去重排序工具. 保留所有权利.</p>
+                <p>© 2025 微信接龙去重分类工具. 保留所有权利.</p>
             </div>
             <div class="footer-links">
                 <a href="#">🐙</a>
@@ -467,61 +483,101 @@
     </footer>
 
     <script>
-        // 文本处理函数 - 优化版本，确保特殊符号保留
+        // 文本处理函数 - 针对用户提供的数据优化版本
         function processText(txtStr) {
+            // 获取分类选项
+            const classification = document.getElementById('classificationSelect').value;
+            
             // 提取每行数据并解析（保留所有字符）
             const lines = txtStr.split('\n').filter(line => line.trim() !== ''); // 过滤空行
             const parsedData = [];
             
             lines.forEach(line => {
-                // 改进的正则表达式，不排除任何Unicode字符（包括表情图标）
-                // 匹配格式: [序号]. [名称] [数字] [状态]
-                const match = line.match(/^\s*(\d+)\.\s*([\s\S]*?)\s*(\d*)\s*([\s\S]*)$/);
-                if (match) {
-                    const [, index, name, number, status] = match;
-                    parsedData.push({
-                        originalLine: line, // 保存原始行用于调试
-                        name: name.trim(),
-                        number: number ? parseInt(number) : '',
-                        status: status.trim()
-                    });
-                } else {
-                    // 处理无法匹配正则的行，直接保留
-                    parsedData.push({
-                        originalLine: line,
-                        name: line.trim(),
-                        number: '',
-                        status: ''
-                    });
+                // 移除行首序号
+                const lineWithoutNumber = line.replace(/^\s*\d+\.\s*/, '').trim();
+                
+                // 关键改进：更智能的场数提取逻辑
+                let name = lineWithoutNumber;
+                let number = 1; // 默认1场
+                
+                // 模式1：匹配明显的场数（前后有空格的数字1或2）
+                const spaceNumberMatch = lineWithoutNumber.match(/(\s+)(1|2)(\s+)/);
+                if (spaceNumberMatch) {
+                    number = parseInt(spaceNumberMatch[2]);
+                    // 提取名字（去除场数部分）
+                    name = lineWithoutNumber.replace(spaceNumberMatch[2], '').trim()
+                        .replace(/\s+/g, ' '); // 合并多个空格
+                } 
+                // 模式2：匹配行尾的场数（如"xxx1"或"xxx 1"）
+                else if (lineWithoutNumber.match(/(1|2)$/)) {
+                    const endNumberMatch = lineWithoutNumber.match(/(1|2)$/);
+                    if (endNumberMatch) {
+                        number = parseInt(endNumberMatch[1]);
+                        name = lineWithoutNumber.replace(endNumberMatch[1], '').trim()
+                            .replace(/\s+/g, ' ');
+                    }
                 }
+                // 模式3：排除干扰项（如"不1场"中的1不应视为场数）
+                else if (lineWithoutNumber.match(/不\d+场/)) {
+                    // 包含"不X场"格式时，忽略该数字
+                    name = lineWithoutNumber.replace(/不\d+场/, '不场').trim()
+                        .replace(/\s+/g, ' ');
+                    number = 1; // 这种情况默认1场
+                }
+                
+                // 处理特殊字符和空格
+                name = name.replace(/\s+/g, ' ').trim();
+                
+                parsedData.push({
+                    originalLine: line,
+                    name: name,
+                    number: number
+                });
             });
             
-            // 去重逻辑：根据名称、数字和状态完全相同进行去重
+            // 改进的去重逻辑：基于名字（标准化处理）和场数
             const uniqueData = [];
             const seen = new Set();
             
             parsedData.forEach(item => {
-                // 创建唯一键，使用原始文本避免编码问题
-                const key = `${item.name}-${item.number}-${item.status}`;
+                // 名字标准化：去除所有特殊符号和状态标识，仅保留核心名字
+                const normalizedName = item.name
+                    .replace(/[不🕊️🐦鸽*～\[\]()'’“”💤🧸🍥🍡🐟🐯🐼👺🍪🥕🐑🧱🍀]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase(); // 忽略大小写
+                
+                // 去重键：标准化名字 + 场数（解决"真绘"和"真绘 1不🕊"的去重问题）
+                const key = `${normalizedName}-${item.number}`;
+                
+                // 特殊情况处理：空名字（如"1 不🕊️"）
+                const finalName = item.name || `[匿名-${item.number}]`;
+                
                 if (!seen.has(key)) {
                     seen.add(key);
-                    uniqueData.push(item);
+                    uniqueData.push({
+                        ...item,
+                        name: finalName // 保留原始名字显示
+                    });
                 }
             });
             
-            // 生成新的文本，完全保留原始符号
+            // 按选择的场数分类
+            let filteredData = uniqueData;
+            if (classification === '1' || classification === '2') {
+                filteredData = uniqueData.filter(item => item.number === parseInt(classification));
+            }
+            
+            // 生成结果：只保留名字
             let result = '';
-            uniqueData.forEach((item, index) => {
-                const lineNumber = index + 1;
-                const numberPart = item.number ? ` ${item.number}` : '';
-                // 保留原始格式和符号
-                result += `${lineNumber}. ${item.name}${numberPart} ${item.status}\n`;
+            filteredData.forEach((item, index) => {
+                result += `${index + 1}. ${item.name}\n`;
             });
             
             // 更新统计信息
             document.getElementById('originalCount').textContent = lines.length;
             document.getElementById('duplicateCount').textContent = lines.length - uniqueData.length;
-            document.getElementById('resultLineCount').textContent = uniqueData.length;
+            document.getElementById('resultLineCount').textContent = filteredData.length;
             
             return result.trim();
         }
@@ -537,13 +593,23 @@
         const resultCount = document.getElementById('resultCount');
         const fileInfo = document.getElementById('fileInfo');
         const dropArea = document.getElementById('dropArea');
+        const classificationSelect = document.getElementById('classificationSelect');
+
+        // 分类选项变化时重新处理文本
+        classificationSelect.addEventListener('change', () => {
+            if (textInput.value.trim()) {
+                const result = processText(textInput.value.trim());
+                resultOutput.value = result;
+                resultCount.textContent = result.length;
+            }
+        });
 
         // 更新字符计数
         textInput.addEventListener('input', () => {
             charCount.textContent = textInput.value.length;
         });
 
-        // 处理文件上传 - 确保正确读取特殊字符
+        // 处理文件上传
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -559,14 +625,13 @@
                     return;
                 }
                 
-                // 读取文件时使用UTF-8编码确保特殊字符正确解析
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     textInput.value = event.target.result;
                     charCount.textContent = textInput.value.length;
                     fileInfo.textContent = `已选择: ${file.name}`;
                 };
-                reader.readAsText(file, 'UTF-8'); // 明确指定UTF-8编码
+                reader.readAsText(file, 'UTF-8');
             }
         });
 
@@ -578,12 +643,11 @@
                 return;
             }
             
-            // 处理文本
             const result = processText(inputText);
             resultOutput.value = result;
             resultCount.textContent = result.length;
             
-            // 添加动画效果
+            // 动画效果
             resultOutput.style.borderColor = '#36D399';
             resultOutput.style.boxShadow = '0 0 0 2px rgba(54, 211, 153, 0.2)';
             setTimeout(() => {
@@ -615,9 +679,7 @@
                 return;
             }
             
-            // 现代剪贴板API，支持特殊字符
             navigator.clipboard.writeText(resultText).then(() => {
-                // 显示复制成功提示
                 const originalText = copyBtn.innerHTML;
                 copyBtn.innerHTML = '<span>✓</span> 已复制';
                 copyBtn.style.backgroundColor = '#2CB887';
@@ -632,7 +694,7 @@
             });
         });
 
-        // 实现拖放功能
+        // 拖放功能
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropArea.addEventListener(eventName, preventDefaults, false);
         });
@@ -684,7 +746,7 @@
                     fileInfo.textContent = `已选择: ${file.name}`;
                     fileInput.files = dt.files;
                 };
-                reader.readAsText(file, 'UTF-8'); // 明确指定UTF-8编码
+                reader.readAsText(file, 'UTF-8');
             }
         }
 
@@ -700,3 +762,4 @@
     </script>
 </body>
 </html>
+    
