@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本去重排序工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        neutral: '#64748b',
+                        accent: '#8b5cf6',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter min-h-screen flex flex-col">
+    <!-- 导航栏 -->
+    <header class="bg-white shadow-md sticky top-0 z-50 transition-all duration-300">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-sort-numeric-asc text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-gray-800">文本去重排序工具</h1>
+            </div>
+            <nav>
+                <ul class="flex space-x-6">
+                    <li><a href="#" class="text-gray-600 hover:text-primary transition-custom">首页</a></li>
+                    <li><a href="#" class="text-gray-600 hover:text-primary transition-custom">使用说明</a></li>
+                    <li><a href="#" class="text-gray-600 hover:text-primary transition-custom">关于</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主要内容区 -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <section class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8 mb-8 transform hover:shadow-xl transition-custom">
+            <h2 class="text-[clamp(1.5rem,3vw,2rem)] font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fa fa-file-text-o text-primary mr-3"></i>文本处理
+            </h2>
+            
+            <!-- 文件上传区域 -->
+            <div class="mb-8">
+                <label for="fileInput" class="block text-sm font-medium text-gray-700 mb-2">选择文件</label>
+                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-primary transition-custom">
+                    <div class="space-y-1 text-center">
+                        <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-2"></i>
+                        <div class="flex text-sm text-gray-600">
+                            <label for="fileInput" class="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary/80 focus-within:outline-none">
+                                <span>上传文件</span>
+                                <input id="fileInput" name="file" type="file" class="sr-only" accept=".txt">
+                            </label>
+                            <p class="pl-1">或拖拽文件到此处</p>
+                        </div>
+                        <p class="text-xs text-gray-500" id="fileInfo">
+                            支持 TXT 文件 (最大 10MB)
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 文本输入区域 -->
+            <div class="mb-6">
+                <label for="textInput" class="block text-sm font-medium text-gray-700 mb-2">或者直接输入文本</label>
+                <div class="relative">
+                    <textarea id="textInput" rows="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition-custom resize-none" placeholder="请输入需要处理的文本..."></textarea>
+                    <div class="absolute bottom-3 right-3 text-xs text-gray-500">
+                        <span id="charCount">0</span> 字符
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 处理按钮 -->
+            <div class="flex flex-wrap gap-4 mb-8">
+                <button id="processBtn" class="flex-1 bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-custom flex items-center justify-center">
+                    <i class="fa fa-magic mr-2"></i> 处理文本
+                </button>
+                <button id="clearBtn" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg transition-custom flex items-center justify-center">
+                    <i class="fa fa-eraser mr-2"></i> 清空
+                </button>
+                <button id="copyBtn" class="flex-1 bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-custom flex items-center justify-center">
+                    <i class="fa fa-copy mr-2"></i> 复制结果
+                </button>
+            </div>
+            
+            <!-- 处理结果区域 -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">处理结果</label>
+                <div class="relative">
+                    <textarea id="resultOutput" rows="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-primary/50 focus:border-primary transition-custom resize-none" placeholder="处理结果将显示在这里..." readonly></textarea>
+                    <div class="absolute bottom-3 right-3 text-xs text-gray-500">
+                        <span id="resultCount">0</span> 字符
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 统计信息 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p class="text-sm text-gray-600 mb-1">原始行数</p>
+                    <p id="originalCount" class="text-2xl font-bold text-gray-800">0</p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p class="text-sm text-gray-600 mb-1">重复行数</p>
+                    <p id="duplicateCount" class="text-2xl font-bold text-red-500">0</p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p class="text-sm text-gray-600 mb-1">处理后行数</p>
+                    <p id="resultLineCount" class="text-2xl font-bold text-green-600">0</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 使用说明 -->
+        <section class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8 mb-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fa fa-info-circle text-primary mr-2"></i>使用说明
+            </h2>
+            <div class="space-y-4 text-gray-700">
+                <p>这个工具可以帮助你对特定格式的文本进行去重和重新排序操作。</p>
+                <h3 class="font-medium text-gray-800">支持的文本格式：</h3>
+                <pre class="bg-gray-50 p-3 rounded-lg text-sm overflow-x-auto">1. 钟慧 2      不🕊️
+2. 龍龍  2      不🕊️
+3. 杨杨 2      不🕊️</pre>
+                <h3 class="font-medium text-gray-800">使用步骤：</h3>
+                <ol class="list-decimal pl-5 space-y-2">
+                    <li>上传包含文本的TXT文件，或直接在文本框中输入文本</li>
+                    <li>点击"处理文本"按钮进行去重和排序</li>
+                    <li>处理结果将显示在下方的文本框中</li>
+                    <li>点击"复制结果"按钮可以复制处理后的文本</li>
+                </ol>
+                <h3 class="font-medium text-gray-800">处理规则：</h3>
+                <ul class="list-disc pl-5 space-y-2">
+                    <li>根据名称、数字和状态完全相同进行去重</li>
+                    <li>重新生成连续的序号</li>
+                    <li>保留原始文本中的格式和特殊字符</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-gray-800 text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-sm text-gray-400">© 2025 文本去重排序工具. 保留所有权利.</p>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white transition-custom">
+                        <i class="fa fa-github text-xl"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-custom">
+                        <i class="fa fa-twitter text-xl"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-custom">
+                        <i class="fa fa-linkedin text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 文本处理函数
+        function processText(txtStr) {
+              // 提取每行数据并解析
+    const lines = txtStr.split('\n');
+    const parsedData = [];
+    
+    lines.forEach(line => {
+        // 修正正则表达式，更准确地提取每行数据
+        const match = line.match(/^\s*(\d+)\.\s*([^0-9]+?)(\d*)\s*([^\n]*)/);
+        if (match) {
+            const [, index, name, number, status] = match;
+            parsedData.push({
+                name: name.trim(),
+                number: number ? parseInt(number) : '',
+                status: status.trim()
+            });
+        }
+    });
+    
+    // 去重逻辑：根据名称、数字和状态完全相同进行去重
+    const uniqueData = [];
+    const seen = new Set();
+    
+    parsedData.forEach(item => {
+        // 标准化状态文本，移除常见变体和符号差异
+        const normalizedStatus = item.status
+            .replace(/[🕊️🐦]/g, '')
+            .replace(/不鸽/g, '不🕊️')
+            .replace(/不鸽/g, '不🕊️')
+            .replace(/不.*鸽/g, '不🕊️')
+            .trim();
+        
+        const key = `${item.name}-${item.number}-${normalizedStatus}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueData.push({
+                ...item,
+                status: normalizedStatus || item.status // 保留原始状态如果标准化后为空
+            });
+        }
+    });
+    
+    // 生成新的文本
+    let result = '';
+    uniqueData.forEach((item, index) => {
+        const lineNumber = index + 1;
+        const numberPart = item.number ? ` ${item.number}` : '';
+        // 恢复原始状态显示
+        const displayStatus = item.status === '不🕊️' ? '不🕊️' : item.status;
+        result += `${lineNumber}. ${item.name}${numberPart} ${displayStatus}\n`;
+    });
+    
+    // 更新统计信息
+    document.getElementById('originalCount').textContent = lines.length;
+    document.getElementById('duplicateCount').textContent = lines.length - uniqueData.length;
+    document.getElementById('resultLineCount').textContent = uniqueData.length;
+    
+    return result.trim();
+        }
+
+        // DOM元素
+        const fileInput = document.getElementById('fileInput');
+        const textInput = document.getElementById('textInput');
+        const resultOutput = document.getElementById('resultOutput');
+        const processBtn = document.getElementById('processBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const charCount = document.getElementById('charCount');
+        const resultCount = document.getElementById('resultCount');
+        const fileInfo = document.getElementById('fileInfo');
+
+        // 更新字符计数
+        textInput.addEventListener('input', () => {
+            charCount.textContent = textInput.value.length;
+        });
+
+        // 处理文件上传
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                // 检查文件大小
+                if (file.size > 10 * 1024 * 1024) { // 10MB
+                    alert('文件大小超过10MB，请选择较小的文件。');
+                    fileInput.value = '';
+                    return;
+                }
+                
+                // 检查文件类型
+                if (!file.name.endsWith('.txt')) {
+                    alert('请上传TXT格式的文件。');
+                    fileInput.value = '';
+                    return;
+                }
+                
+                // 读取文件内容
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    textInput.value = event.target.result;
+                    charCount.textContent = textInput.value.length;
+                    fileInfo.textContent = `已选择: ${file.name}`;
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // 处理文本按钮点击事件
+        processBtn.addEventListener('click', () => {
+            const inputText = textInput.value.trim();
+            if (!inputText) {
+                alert('请输入文本或上传文件');
+                return;
+            }
+            
+            // 处理文本
+            const result = processText(inputText);
+            resultOutput.value = result;
+            resultCount.textContent = result.length;
+            
+            // 添加动画效果
+            resultOutput.classList.add('ring-2', 'ring-green-400');
+            setTimeout(() => {
+                resultOutput.classList.remove('ring-2', 'ring-green-400');
+            }, 1000);
+        });
+
+        // 清空按钮点击事件
+        clearBtn.addEventListener('click', () => {
+            textInput.value = '';
+            resultOutput.value = '';
+            charCount.textContent = '0';
+            resultCount.textContent = '0';
+            fileInput.value = '';
+            fileInfo.textContent = '支持 TXT 文件 (最大 10MB)';
+            
+            // 重置统计信息
+            document.getElementById('originalCount').textContent = '0';
+            document.getElementById('duplicateCount').textContent = '0';
+            document.getElementById('resultLineCount').textContent = '0';
+        });
+
+        // 复制结果按钮点击事件
+        copyBtn.addEventListener('click', () => {
+            const resultText = resultOutput.value;
+            if (!resultText) {
+                alert('没有可复制的结果');
+                return;
+            }
+            
+            // 复制到剪贴板
+            resultOutput.select();
+            document.execCommand('copy');
+            
+            // 显示复制成功提示
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="fa fa-check mr-2"></i> 已复制';
+            copyBtn.classList.remove('bg-secondary', 'hover:bg-secondary/90');
+            copyBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+                copyBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                copyBtn.classList.add('bg-secondary', 'hover:bg-secondary/90');
+            }, 2000);
+        });
+
+        // 实现拖放功能
+        const dropArea = document.querySelector('.border-dashed');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropArea.classList.add('border-primary');
+            dropArea.classList.add('bg-blue-50');
+        }
+        
+        function unhighlight() {
+            dropArea.classList.remove('border-primary');
+            dropArea.classList.remove('bg-blue-50');
+        }
+        
+        dropArea.addEventListener('drop', handleDrop, false);
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            
+            if (file) {
+                // 检查文件大小
+                if (file.size > 10 * 1024 * 1024) { // 10MB
+                    alert('文件大小超过10MB，请选择较小的文件。');
+                    return;
+                }
+                
+                // 检查文件类型
+                if (!file.name.endsWith('.txt')) {
+                    alert('请上传TXT格式的文件。');
+                    return;
+                }
+                
+                // 读取文件内容
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    textInput.value = event.target.result;
+                    charCount.textContent = textInput.value.length;
+                    fileInfo.textContent = `已选择: ${file.name}`;
+                    fileInput.files = dt.files;
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // 导航栏滚动效果
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('py-2');
+                header.classList.remove('py-3');
+            } else {
+                header.classList.add('py-3');
+                header.classList.remove('py-2');
+            }
+        });
+    </script>
+</body>
+</html>
+    
