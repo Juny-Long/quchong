@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级数据转换与计算工具</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h2>高级数据转换与计算工具</h2>
+    
+    <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; background: #f9f9f9;">
+        <strong>处理模式：</strong>
+        <label><input type="radio" name="processMode" value="singleSheet" checked onclick="toggleOptions()"> 单文件单工作簿</label>
+        <label><input type="radio" name="processMode" value="multiSheet" onclick="toggleOptions()"> 单文件多工作簿</label>
+        <label><input type="radio" name="processMode" value="multiFile" onclick="toggleOptions()"> 多文件多工作簿</label>
+        
+        <div id="modeTips" style="margin-top: 10px; padding: 5px; background: #e8f4fd; border-left: 3px solid #409eff;">
+            <small><strong>提示：</strong> <span id="tipText">单文件单工作簿模式：只处理第一个文件的第一个工作簿</span></small>
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; background: #f9f9f9;">
+        <strong>数据提取配置：</strong><br>
+        起始行: <input type="number" id="startRow" value="2" min="1" style="width:60px;"> (1表示第1行，表头行)<br>
+        起始列: <input type="number" id="startCol" value="2" min="1" style="width:60px;"> (1表示第1列)<br>
+        导出模式: 
+        <select id="exportMode">
+            <option value="dataOnly">仅导出数据</option>
+            <option value="headerOnly">仅导出表头</option>
+            <option value="both" selected>数据和表头都导出</option>
+        </select><br>
+        文本文件分隔符: 
+        <select id="delimiter">
+            <option value="auto">自动检测</option>
+            <option value=",">逗号 (,)</option>
+            <option value="\t">制表符 (\t)</option>
+            <option value=";">分号 (;)</option>
+            <option value=" ">空格 ( )</option>
+            <option value="|">竖线 (|)</option>
+        </select><br>
+        <div id="sheetFilterDiv" style="display: none;">
+            过滤工作簿名称: <input type="text" id="sheetFilter" placeholder="输入工作簿名称，多个用逗号分隔" style="width:300px;"><br>
+            <small>注意: 输入工作簿名称（如Sheet1,Sheet2），只处理这些工作簿</small>
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; background: #f9f9f9;">
+        <strong>计算配置：</strong><br>
+        <label><input type="checkbox" id="enableRowSum" onchange="toggleRowSum()"> 按行求和</label>
+        <div id="rowSumOptions" style="margin-left: 20px; margin-top: 5px; display: none;">
+            求和起始列: <input type="number" id="rowSumStartCol" value="1" min="1" style="width:60px;"> (相对于提取后的列位置)<br>
+            求和结束列: <input type="number" id="rowSumEndCol" value="100" min="1" style="width:60px;"> (0表示到最后列)<br>
+            求和列名称: <input type="text" id="rowSumColName" value="行合计" style="width:100px;">
+        </div>
+        <br>
+        <label><input type="checkbox" id="enableColSum" onchange="toggleColSum()"> 按列求和</label>
+        <div id="colSumOptions" style="margin-left: 20px; margin-top: 5px; display: none;">
+            求和起始行: <input type="number" id="colSumStartRow" value="1" min="1" style="width:60px;"> (相对于提取后的行位置)<br>
+            求和结束行: <input type="number" id="colSumEndRow" value="1000" min="1" style="width:60px;"> (0表示到最后行)<br>
+            求和行名称: <input type="text" id="colSumRowName" value="列合计" style="width:100px;">
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv, .txt, .cvg" />
+        <button onclick="processFiles()" style="margin-left: 10px;">处理文件</button>
+        <button onclick="clearFiles()" style="margin-left: 10px;">清空文件</button>
+    </div>
+    
+    <div id="fileList" style="margin-bottom: 20px; display: none;">
+        <h4>已选择的文件:</h4>
+        <div id="fileItems"></div>
+    </div>
+    
+    <div id="result" style="margin-top: 20px; display: none;">
+        <h3>转换结果：</h3>
+        <div>
+            <button onclick="copyToClipboard()">复制JSON</button>
+            <button onclick="downloadJSON()">下载JSON文件</button>
+            <button onclick="downloadAllJSON()" style="margin-left: 10px;">下载所有JSON(分开)</button>
+            <button onclick="downloadCalculatedData()" style="margin-left: 10px;" id="calcDataBtn" disabled>下载计算结果</button>
+        </div>
+        <div id="calcSummary" style="margin: 10px 0; padding: 10px; background: #e8f4fd; display: none;"></div>
+        <pre id="jsonOutput" style="border: 1px solid #ccc; padding: 10px; max-height: 400px; overflow: auto; background: #f5f5f5;"></pre>
+    </div>
+    
+    <div id="notice" style="margin-top: 20px; padding: 10px; border: 1px solid #f0c36d; background: #f9edbe; display: none;">
+        <h4>注意事项：</h4>
+        <ul id="noticeList" style="margin: 5px 0; padding-left: 20px;"></ul>
+    </div>
+    
+    <script>
+        let resultData = {};
+        let allFileResults = {};
+        let selectedFiles = [];
+        let calculatedResults = {};
+        let hasCalculations = false;
+        
+        function toggleOptions() {
+            const mode = document.querySelector('input[name="processMode"]:checked').value;
+            const sheetFilterDiv = document.getElementById('sheetFilterDiv');
+            const tipText = document.getElementById('tipText');
+            
+            if (mode === 'singleSheet') {
+                sheetFilterDiv.style.display = 'none';
+                tipText.innerHTML = '单文件单工作簿模式：只处理第一个文件的第一个工作簿';
+            } else if (mode === 'multiSheet') {
+                sheetFilterDiv.style.display = 'block';
+                tipText.innerHTML = '单文件多工作簿模式：处理第一个文件的所有工作簿，可过滤工作簿名称';
+            } else {
+                sheetFilterDiv.style.display = 'block';
+                tipText.innerHTML = '多文件多工作簿模式：处理所有文件的所有工作簿，可过滤工作簿名称';
+            }
+        }
+        
+        function toggleRowSum() {
+            const rowSumOptions = document.getElementById('rowSumOptions');
+            rowSumOptions.style.display = document.getElementById('enableRowSum').checked ? 'block' : 'none';
+        }
+        
+        function toggleColSum() {
+            const colSumOptions = document.getElementById('colSumOptions');
+            colSumOptions.style.display = document.getElementById('enableColSum').checked ? 'block' : 'none';
+        }
+        
+        // 文件选择事件
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            selectedFiles = Array.from(e.target.files);
+            updateFileList();
+        });
+        
+        function updateFileList() {
+            const fileListDiv = document.getElementById('fileList');
+            const fileItemsDiv = document.getElementById('fileItems');
+            
+            if (selectedFiles.length === 0) {
+                fileListDiv.style.display = 'none';
+                return;
+            }
+            
+            fileListDiv.style.display = 'block';
+            fileItemsDiv.innerHTML = '';
+            
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.style.margin = '5px 0';
+                fileItem.innerHTML = `${index + 1}. ${file.name} (${formatFileSize(file.size)})`;
+                fileItemsDiv.appendChild(fileItem);
+            });
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function clearFiles() {
+            document.getElementById('fileInput').value = '';
+            selectedFiles = [];
+            updateFileList();
+            resultData = {};
+            allFileResults = {};
+            calculatedResults = {};
+            hasCalculations = false;
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('notice').style.display = 'none';
+            document.getElementById('calcDataBtn').disabled = true;
+            document.getElementById('calcSummary').style.display = 'none';
+        }
+        
+        function processFiles() {
+            if (selectedFiles.length === 0) {
+                alert('请先选择文件');
+                return;
+            }
+            
+            // 收集注意事项
+            const notices = [];
+            
+            // 获取配置参数
+            const mode = document.querySelector('input[name="processMode"]:checked').value;
+            const startRow = parseInt(document.getElementById('startRow').value) - 1;
+            const startCol = parseInt(document.getElementById('startCol').value) - 1;
+            const exportMode = document.getElementById('exportMode').value;
+            const delimiter = document.getElementById('delimiter').value;
+            const sheetFilter = document.getElementById('sheetFilter').value;
+            
+            // 求和配置
+            const enableRowSum = document.getElementById('enableRowSum').checked;
+            const enableColSum = document.getElementById('enableColSum').checked;
+            const rowSumStartCol = parseInt(document.getElementById('rowSumStartCol').value) - 1;
+            const rowSumEndCol = parseInt(document.getElementById('rowSumEndCol').value) - 1;
+            const rowSumColName = document.getElementById('rowSumColName').value;
+            const colSumStartRow = parseInt(document.getElementById('colSumStartRow').value) - 1;
+            const colSumEndRow = parseInt(document.getElementById('colSumEndRow').value) - 1;
+            const colSumRowName = document.getElementById('colSumRowName').value;
+            
+            hasCalculations = enableRowSum || enableColSum;
+            document.getElementById('calcDataBtn').disabled = !hasCalculations;
+            
+            // 根据模式调整处理方式
+            let filesToProcess = selectedFiles;
+            if (mode === 'singleSheet' || mode === 'multiSheet') {
+                // 只处理第一个文件
+                filesToProcess = [selectedFiles[0]];
+                if (mode === 'singleSheet') {
+                    notices.push('单文件单工作簿模式：只处理第一个文件的第一个工作簿');
+                } else {
+                    notices.push('单文件多工作簿模式：处理第一个文件的所有工作簿');
+                }
+            } else {
+                notices.push('多文件多工作簿模式：处理所有文件的所有工作簿');
+            }
+            
+            // 处理过滤条件
+            let filterSheets = [];
+            if (sheetFilter.trim() !== '') {
+                filterSheets = sheetFilter.split(',').map(s => s.trim());
+                notices.push(`过滤工作簿：${filterSheets.join(', ')}`);
+            }
+            
+            // 验证配置
+            if (startRow < 0) notices.push('警告：起始行应为正整数');
+            if (startCol < 0) notices.push('警告：起始列应为正整数');
+            if (enableRowSum) {
+                if (rowSumStartCol < 0) notices.push('警告：行求和起始列应为正整数');
+                if (rowSumEndCol >= 0 && rowSumEndCol < rowSumStartCol) {
+                    notices.push('警告：行求和结束列应大于等于起始列');
+                }
+            }
+            if (enableColSum) {
+                if (colSumStartRow < 0) notices.push('警告：列求和起始行应为正整数');
+                if (colSumEndRow >= 0 && colSumEndRow < colSumStartRow) {
+                    notices.push('警告：列求和结束行应大于等于起始行');
+                }
+            }
+            
+            // 显示注意事项
+            showNotices(notices);
+            
+            // 清空之前的结果
+            resultData = {};
+            allFileResults = {};
+            calculatedResults = {};
+            
+            // 处理所有文件
+            const promises = filesToProcess.map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        try {
+                            const processMode = mode === 'singleSheet' ? 'singleSheet' : 'multiSheet';
+                            const fileResult = processSingleFile(
+                                file, 
+                                e.target.result, 
+                                startRow, 
+                                startCol, 
+                                exportMode, 
+                                delimiter,
+                                filterSheets,
+                                processMode
+                            );
+                            
+                            // 如果需要计算，则进行计算
+                            let processedResult = fileResult;
+                            if (hasCalculations) {
+                                const calculationResult = performCalculations(
+                                    fileResult,
+                                    enableRowSum,
+                                    enableColSum,
+                                    rowSumStartCol,
+                                    rowSumEndCol,
+                                    rowSumColName,
+                                    colSumStartRow,
+                                    colSumEndRow,
+                                    colSumRowName,
+                                    exportMode
+                                );
+                                processedResult = calculationResult.result;
+                                calculatedResults[file.name] = calculationResult.summary;
+                            }
+                            
+                            resolve({fileName: file.name, result: processedResult});
+                        } catch (error) {
+                            reject({fileName: file.name, error: error});
+                        }
+                    };
+                    
+                    reader.onerror = function() {
+                        reject({fileName: file.name, error: new Error('文件读取失败')});
+                    };
+                    
+                    // 根据文件类型选择读取方式
+                    const extension = file.name.split('.').pop().toLowerCase();
+                    if (['xlsx', 'xls'].includes(extension)) {
+                        reader.readAsBinaryString(file);
+                    } else {
+                        reader.readAsText(file, 'UTF-8');
+                    }
+                });
+            });
+            
+            // 显示处理中状态
+            document.getElementById('jsonOutput').textContent = '处理中，请稍候...';
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('calcSummary').style.display = 'none';
+            
+            // 等待所有文件处理完成
+            Promise.allSettled(promises)
+                .then(results => {
+                    // 合并所有文件的结果
+                    results.forEach((result, index) => {
+                        if (result.status === 'fulfilled') {
+                            const {fileName, result: fileResult} = result.value;
+                            
+                            // 存储单个文件的结果
+                            allFileResults[fileName] = fileResult;
+                            
+                            // 根据模式合并到总结果中
+                            if (mode === 'singleSheet') {
+                                // 单工作簿模式：直接取第一个工作簿
+                                const firstSheetKey = Object.keys(fileResult)[0];
+                                if (firstSheetKey) {
+                                    const baseName = fileName.replace(/\.[^/.]+$/, '');
+                                    resultData[baseName] = fileResult[firstSheetKey];
+                                }
+                            } else if (mode === 'multiSheet') {
+                                // 单文件多工作簿模式
+                                const baseName = fileName.replace(/\.[^/.]+$/, '');
+                                resultData[baseName] = fileResult;
+                            } else {
+                                // 多文件多工作簿模式：使用文件名作为键
+                                const baseName = fileName.replace(/\.[^/.]+$/, '');
+                                resultData[baseName] = fileResult;
+                            }
+                        } else {
+                            console.error(`文件处理失败: ${result.reason.fileName}`, result.reason.error);
+                            notices.push(`文件处理失败: ${result.reason.fileName}`);
+                        }
+                    });
+                    
+                    // 显示计算摘要
+                    if (hasCalculations && Object.keys(calculatedResults).length > 0) {
+                        showCalculationSummary(calculatedResults);
+                    }
+                    
+                    displayResult();
+                })
+                .catch(error => {
+                    console.error('处理过程中出错:', error);
+                    notices.push('处理过程中出错，请检查控制台');
+                    showNotices(notices);
+                    alert('处理过程中出错，请检查控制台');
+                });
+        }
+        
+        function processSingleFile(file, fileContent, startRow, startCol, exportMode, delimiter, filterSheets, processMode) {
+            const extension = file.name.split('.').pop().toLowerCase();
+            let result = {};
+            
+            if (['xlsx', 'xls'].includes(extension)) {
+                // 处理Excel文件
+                result = processExcelFile(fileContent, startRow, startCol, exportMode, filterSheets, processMode);
+            } else {
+                // 处理文本文件(CSV/TXT/CVG)
+                const processedData = processTextFile(fileContent, startRow, startCol, exportMode, delimiter);
+                result = {[file.name.replace(/\.[^/.]+$/, '')]: processedData};
+            }
+            
+            return result;
+        }
+        
+        function processExcelFile(fileContent, startRow, startCol, exportMode, filterSheets, processMode) {
+            const workbook = XLSX.read(fileContent, { type: 'binary' });
+            const result = {};
+            
+            // 确定要处理的工作簿
+            let sheetsToProcess = workbook.SheetNames;
+            if (filterSheets.length > 0) {
+                sheetsToProcess = sheetsToProcess.filter(name => filterSheets.includes(name));
+            }
+            
+            // 如果是单工作簿模式，只取第一个
+            if (processMode === 'singleSheet' && sheetsToProcess.length > 0) {
+                sheetsToProcess = [sheetsToProcess[0]];
+            }
+            
+            // 遍历每个工作簿
+            sheetsToProcess.forEach(sheetName => {
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                // 处理数据
+                const processedData = processDataArray(jsonData, startRow, startCol, exportMode);
+                
+                // 如果处理后的数据不为空，则添加到结果
+                if ((exportMode === 'headerOnly' && processedData.headers.length > 0) ||
+                    (exportMode === 'dataOnly' && processedData.data.length > 0) ||
+                    (exportMode === 'both' && (processedData.headers.length > 0 || processedData.data.length > 0))) {
+                    result[sheetName] = processedData;
+                }
+            });
+            
+            return result;
+        }
+        
+        function processTextFile(fileContent, startRow, startCol, exportMode, delimiterType) {
+            // 将文本内容转换为二维数组
+            const lines = fileContent.split(/\r\n|\n|\r/);
+            
+            // 自动检测分隔符
+            let actualDelimiter = delimiterType;
+            if (delimiterType === 'auto') {
+                actualDelimiter = detectDelimiter(lines);
+            }
+            
+            const dataArray = lines.map(line => {
+                if (actualDelimiter === ' ') {
+                    // 处理空格分隔（多个空格视为一个分隔符）
+                    return line.trim().split(/\s+/);
+                } else {
+                    return line.split(actualDelimiter);
+                }
+            }).filter(row => row.length > 0 && row.some(cell => cell !== ''));
+            
+            // 处理数据
+            return processDataArray(dataArray, startRow, startCol, exportMode);
+        }
+        
+        function detectDelimiter(lines) {
+            const sampleLines = lines.slice(0, Math.min(10, lines.length));
+            const delimiterCounts = {
+                ',': 0,
+                '\t': 0,
+                ';': 0,
+                '|': 0
+            };
+            
+            sampleLines.forEach(line => {
+                Object.keys(delimiterCounts).forEach(delimiter => {
+                    const count = line.split(delimiter).length - 1;
+                    if (count > 0) {
+                        delimiterCounts[delimiter] += count;
+                    }
+                });
+            });
+            
+            // 找到使用最多的分隔符
+            let maxDelimiter = ',';
+            let maxCount = delimiterCounts[','];
+            
+            Object.keys(delimiterCounts).forEach(delimiter => {
+                if (delimiterCounts[delimiter] > maxCount) {
+                    maxCount = delimiterCounts[delimiter];
+                    maxDelimiter = delimiter;
+                }
+            });
+            
+            // 如果没有找到分隔符，尝试空格分隔
+            if (maxCount === 0) {
+                const spaceCount = sampleLines.reduce((count, line) => {
+                    return count + (line.trim().split(/\s+/).length - 1);
+                }, 0);
+                
+                if (spaceCount > 0) {
+                    return ' ';
+                }
+            }
+            
+            return maxDelimiter;
+        }
+        
+        function processDataArray(jsonData, startRow, startCol, exportMode) {
+            if (jsonData.length === 0) {
+                return { headers: [], data: [] };
+            }
+            
+            if (exportMode === 'headerOnly') {
+                // 只导出表头
+                if (jsonData.length > startRow) {
+                    const headerRow = jsonData[startRow];
+                    const headers = headerRow && headerRow.length > startCol ? 
+                                  headerRow.slice(startCol) : [];
+                    return { headers: headers, data: [] };
+                }
+            } else if (exportMode === 'dataOnly') {
+                // 只导出数据
+                const dataRows = [];
+                for (let i = startRow + 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (row && row.length > startCol) {
+                        const filteredRow = row.slice(startCol);
+                        // 检查是否为空行
+                        if (filteredRow.some(cell => cell !== null && cell !== undefined && cell !== '')) {
+                            dataRows.push(filteredRow);
+                        }
+                    }
+                }
+                return { headers: [], data: dataRows };
+            } else {
+                // 导出表头和数据
+                const headerRow = jsonData.length > startRow ? jsonData[startRow] : [];
+                const headers = headerRow && headerRow.length > startCol ? 
+                              headerRow.slice(startCol) : [];
+                
+                const dataRows = [];
+                for (let i = startRow + 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (row && row.length > startCol) {
+                        const filteredRow = row.slice(startCol);
+                        // 检查是否为空行
+                        if (filteredRow.some(cell => cell !== null && cell !== undefined && cell !== '')) {
+                            // 转换为对象（使用表头作为键名）
+                            const rowObj = {};
+                            headers.forEach((header, index) => {
+                                // 如果表头为空，使用默认键名
+                                const key = header !== undefined && header !== '' ? 
+                                          String(header) : `col${index + 1}`;
+                                rowObj[key] = filteredRow[index] !== undefined ? 
+                                            filteredRow[index] : null;
+                            });
+                            dataRows.push(rowObj);
+                        }
+                    }
+                }
+                
+                return { headers: headers, data: dataRows };
+            }
+            
+            return { headers: [], data: [] };
+        }
+        
+        function performCalculations(data, enableRowSum, enableColSum, rowSumStartCol, rowSumEndCol, rowSumColName, colSumStartRow, colSumEndRow, colSumRowName, exportMode) {
+            const result = {};
+            const summary = {
+                rowSums: {},
+                colSums: {},
+                totalRowSum: 0,
+                totalColSum: 0,
+                maxRowSum: -Infinity,
+                minRowSum: Infinity,
+                maxColSum: -Infinity,
+                minColSum: Infinity
+            };
+            
+            // 处理每个工作簿
+            Object.keys(data).forEach(sheetName => {
+                const sheetData = data[sheetName];
+                const processedData = { headers: [...sheetData.headers], data: [...sheetData.data] };
+                
+                // 按行求和
+                if (enableRowSum && processedData.data.length > 0) {
+                    const colCount = processedData.data[0].length;
+                    const actualEndCol = rowSumEndCol >= 0 ? Math.min(rowSumEndCol, colCount - 1) : colCount - 1;
+                    const actualStartCol = Math.max(0, Math.min(rowSumStartCol, actualEndCol));
+                    
+                    processedData.data.forEach((row, rowIndex) => {
+                        let rowSum = 0;
+                        let validCount = 0;
+                        
+                        // 计算行和
+                        for (let col = actualStartCol; col <= actualEndCol; col++) {
+                            const cellValue = row[Object.keys(row)[col]];
+                            if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                                const numValue = parseFloat(cellValue);
+                                if (!isNaN(numValue)) {
+                                    rowSum += numValue;
+                                    validCount++;
+                                }
+                            }
+                        }
+                        
+                        // 添加行合计
+                        row[rowSumColName] = rowSum;
+                        
+                        // 更新统计信息
+                        summary.rowSums[`${sheetName}_row${rowIndex}`] = rowSum;
+                        summary.totalRowSum += rowSum;
+                        if (rowSum > summary.maxRowSum) summary.maxRowSum = rowSum;
+                        if (rowSum < summary.minRowSum) summary.minRowSum = rowSum;
+                    });
+                    
+                    // 更新表头
+                    if (processedData.headers.indexOf(rowSumColName) === -1) {
+                        processedData.headers.push(rowSumColName);
+                    }
+                }
+                
+                // 按列求和
+                if (enableColSum && processedData.data.length > 0) {
+                    const rowCount = processedData.data.length;
+                    const actualEndRow = colSumEndRow >= 0 ? Math.min(colSumEndRow, rowCount - 1) : rowCount - 1;
+                    const actualStartRow = Math.max(0, Math.min(colSumStartRow, actualEndRow));
+                    
+                    // 初始化列和数组
+                    const colSums = {};
+                    const colCounts = {};
+                    
+                    // 初始化列统计
+                    processedData.headers.forEach(header => {
+                        colSums[header] = 0;
+                        colCounts[header] = 0;
+                    });
+                    
+                    // 计算列和
+                    for (let rowIndex = actualStartRow; rowIndex <= actualEndRow; rowIndex++) {
+                        const row = processedData.data[rowIndex];
+                        Object.keys(row).forEach(key => {
+                            const cellValue = row[key];
+                            if (cellValue !== null && cellValue !== undefined && cellValue !== '') {
+                                const numValue = parseFloat(cellValue);
+                                if (!isNaN(numValue)) {
+                                    colSums[key] += numValue;
+                                    colCounts[key]++;
+                                }
+                            }
+                        });
+                    }
+                    
+                    // 创建列合计行
+                    const colSumRow = {};
+                    Object.keys(colSums).forEach(key => {
+                        colSumRow[key] = colSums[key];
+                        
+                        // 更新列统计
+                        if (key !== rowSumColName) { // 排除行合计列
+                            summary.colSums[key] = summary.colSums[key] || 0;
+                            summary.colSums[key] += colSums[key];
+                            summary.totalColSum += colSums[key];
+                            
+                            if (colSums[key] > summary.maxColSum) summary.maxColSum = colSums[key];
+                            if (colSums[key] < summary.minColSum) summary.minColSum = colSums[key];
+                        }
+                    });
+                    
+                    // 添加列合计行
+                    processedData.data.push(colSumRow);
+                }
+                
+                result[sheetName] = processedData;
+            });
+            
+            return { result, summary };
+        }
+        
+        function showCalculationSummary(calculatedResults) {
+            const calcSummaryDiv = document.getElementById('calcSummary');
+            let summaryHTML = '<strong>计算摘要：</strong><br>';
+            
+            Object.keys(calculatedResults).forEach(fileName => {
+                const summary = calculatedResults[fileName];
+                summaryHTML += `<div style="margin-top: 5px;"><strong>${fileName}:</strong><br>`;
+                
+                if (Object.keys(summary.rowSums).length > 0) {
+                    summaryHTML += `行合计统计: 总计=${summary.totalRowSum.toFixed(2)}, 最大值=${summary.maxRowSum.toFixed(2)}, 最小值=${summary.minRowSum.toFixed(2)}<br>`;
+                }
+                
+                if (Object.keys(summary.colSums).length > 0) {
+                    summaryHTML += `列合计统计: 总计=${summary.totalColSum.toFixed(2)}, 最大值=${summary.maxColSum.toFixed(2)}, 最小值=${summary.minColSum.toFixed(2)}`;
+                }
+                
+                summaryHTML += '</div>';
+            });
+            
+            calcSummaryDiv.innerHTML = summaryHTML;
+            calcSummaryDiv.style.display = 'block';
+        }
+        
+        function showNotices(notices) {
+            const noticeDiv = document.getElementById('notice');
+            const noticeList = document.getElementById('noticeList');
+            
+            if (notices.length === 0) {
+                noticeDiv.style.display = 'none';
+                return;
+            }
+            
+            noticeList.innerHTML = '';
+            notices.forEach(notice => {
+                const li = document.createElement('li');
+                li.textContent = notice;
+                noticeList.appendChild(li);
+            });
+            
+            noticeDiv.style.display = 'block';
+        }
+        
+        function displayResult() {
+            const resultDiv = document.getElementById('result');
+            const jsonOutput = document.getElementById('jsonOutput');
+            
+            if (Object.keys(resultData).length === 0) {
+                jsonOutput.textContent = '未找到有效数据';
+                return;
+            }
+            
+            // 转换为格式化的JSON字符串
+            const jsonStr = JSON.stringify(resultData, null, 2);
+            jsonOutput.textContent = jsonStr;
+            resultDiv.style.display = 'block';
+            
+            // 输出统计信息
+            console.log('处理完成:', resultData);
+        }
+        
+        function copyToClipboard() {
+            const jsonOutput = document.getElementById('jsonOutput');
+            const textArea = document.createElement('textarea');
+            textArea.value = jsonOutput.textContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            alert('JSON已复制到剪贴板');
+        }
+        
+        function downloadJSON() {
+            const jsonStr = JSON.stringify(resultData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'processed_data_' + new Date().getTime() + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(url);
+        }
+        
+        function downloadAllJSON() {
+            // 下载所有文件的单独JSON
+            Object.keys(allFileResults).forEach(fileName => {
+                const fileData = allFileResults[fileName];
+                const jsonStr = JSON.stringify(fileData, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const baseName = fileName.replace(/\.[^/.]+$/, '');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${baseName}_processed.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+            });
+        }
+        
+        function downloadCalculatedData() {
+            if (!hasCalculations || Object.keys(calculatedResults).length === 0) {
+                alert('没有计算结果可下载');
+                return;
+            }
+            
+            // 创建包含计算结果的CSV
+            let csvContent = "文件,工作表,类型,键,值\n";
+            
+            Object.keys(calculatedResults).forEach(fileName => {
+                const summary = calculatedResults[fileName];
+                
+                // 行合计数据
+                Object.keys(summary.rowSums).forEach(key => {
+                    csvContent += `${fileName},${key.split('_')[0]},行合计,${key.split('_')[1]},${summary.rowSums[key].toFixed(2)}\n`;
+                });
+                
+                // 列合计数据
+                Object.keys(summary.colSums).forEach(key => {
+                    csvContent += `${fileName},-,列合计,${key},${summary.colSums[key].toFixed(2)}\n`;
+                });
+                
+                // 汇总数据
+                csvContent += `${fileName},-,总计,行合计总计,${summary.totalRowSum.toFixed(2)}\n`;
+                csvContent += `${fileName},-,总计,列合计总计,${summary.totalColSum.toFixed(2)}\n`;
+                csvContent += `${fileName},-,统计,最大行合计,${summary.maxRowSum.toFixed(2)}\n`;
+                csvContent += `${fileName},-,统计,最小行合计,${summary.minRowSum.toFixed(2)}\n`;
+                csvContent += `${fileName},-,统计,最大列合计,${summary.maxColSum.toFixed(2)}\n`;
+                csvContent += `${fileName},-,统计,最小列合计,${summary.minColSum.toFixed(2)}\n`;
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `calculation_results_${new Date().getTime()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(url);
+        }
+        
+        // 初始化
+        toggleOptions();
+        toggleRowSum();
+        toggleColSum();
+    </script>
+</body>
+</html>
